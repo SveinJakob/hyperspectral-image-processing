@@ -36,98 +36,6 @@ def read_image_file(img_path, hdr_path):
     return img_read, hdr_read
 
 
-def crop_to_area(img, area):
-    """
-    Crops image and returns cropped area.
-
-    Will be used before k-means grouping to crop out the white reference for
-    better groupig.
-
-    ----- input -----
-    img: spectral image
-        Image to be cropped
-    area: string
-        Area of image to be cropped
-    ----- returns -----
-    img_cropped: spectral image
-        The cropped image.
-    """
-    # Splitting area string into y- and x-ranges (strings)
-    area_split = area.split(',')  # '250:270', '400:470'
-    # Splittig the individual ranges into start and end values
-    y_range_string = area_split[0].split(':')  # '250', '270'
-    x_range_string = area_split[1].split(':')  # '400', '470'
-
-    # Reaching start and end values and making slices
-    y1, y2 = int(y_range_string[0]), int(y_range_string[1])
-    x1, x2 = int(x_range_string[0]), int(x_range_string[1])
-    y_range = slice(y1, y2)
-    x_range = slice(x1, x2)
-
-    img_cropped = img[y_range, x_range, :]
-    return img_cropped
-
-
-def group_with_kmeans(img):
-    """
-    Groups the pixels in image in two groups for leaf-background segmentation.
-
-    To be used on cropped image containing leaf and background
-
-    ----- input -----
-    img: spectral image
-        Image containing leaf and background to be segmented
-    ----- returns -----
-    leaf_pixels: list
-        List containing all the pixels from the leaf
-    mask: matrix
-        matrix contaning the mask for leaf-background segmentation
-    c: array(?)
-        centers found with kmeans.
-    """
-    (mask, c) = kmeans(img, 2, 20)
-
-    leaf_pixels = []
-    for i in range(np.shape(mask)[0]):
-        for j in range(np.shape(mask)[1]):
-            if mask[i, j] == 1:
-                leaf_pixels.append(img[i, j, :])
-    leaf_pixels = np.array(leaf_pixels)
-    return leaf_pixels, mask, c
-
-
-def crop_out_area_pixels(img, areas):
-    """
-    Function to crop out the chosen areas.
-
-    ----- input -----
-    img: spectral image
-        Image containing the rust pixels to crop out
-    area: string
-        Areas in image to crop out, format [ymin, ymax, xmin, xmax]
-    ----- returns -----
-    areas_: list
-        Contains list of all areas' pixels from the image.
-    """
-    areas_ = []
-    for area in areas:
-        area_pixels = []
-        ymin = area[0]
-        ymax = area[1]
-        xmin = area[2]
-        xmax = area[3]
-
-        # Append the crop to list:
-        img_area = img[ymin:ymax, xmin:xmax, :]
-        for i in range(img_area.shape[0]):
-            for j in range(img_area.shape[1]):
-                area_pixels.append(img_area[i, j, :])
-        areas_.append(area_pixels)
-
-    # Return the list after all areas have been cropped:
-    return areas_
-
-
 def preprocess_image(dict, snv_corr=True):
     """
     Performs preprocessing on the image, erg. white reference correction,
@@ -206,37 +114,6 @@ def preprocess_images_in_dict(dict_of_dicts, snv_corr=True):
     return all_leaf_pixels, all_leaf_images, all_area_pixels
 
 
-def quickplot_image(path_img, path_hdr, area_wr=[0,0,0,0], area_leaf=[0,0,0,0],
-                    bands=[0, 288],
-                    clim=(0, 0.02)):
-    """Simple image plot to check areas"""
-    img, hdr = read_image_file(path_img, path_hdr)
-    # plt.rc('font', size=8)
-    dpi = 100
-    plt.figure(figsize=(img.shape[1]/dpi, img.shape[0]/dpi), dpi=dpi)
-    # Testing better visualization:
-    plt.imshow(np.mean(img[:, :, bands[0]:bands[1]], axis=2),
-               cmap='jet', clim=clim)
-    plt.colorbar()
-
-    # Drawing the white reference and leaf area
-    ymin_wr = area_wr[0]; ymax_wr = area_wr[1]
-    xmin_wr = area_wr[2]; xmax_wr = area_wr[3]
-    ymin_l = area_leaf[0]; ymax_l = area_leaf[1]
-    xmin_l = area_leaf[2]; xmax_l = area_leaf[3]
-
-    # # White reference area:
-    plt.gca().add_patch(Rectangle((xmin_wr, ymin_wr),
-                                  (xmax_wr - xmin_wr), (ymax_wr - ymin_wr),
-                                  linewidth=1, color='r', fill=False))
-    # # Leaf area:
-    plt.gca().add_patch(Rectangle((xmin_l, ymin_l),
-                                  (xmax_l - xmin_l), (ymax_l - ymin_l),
-                                  linewidth=1, color='r', fill=False))
-    plt.show()
-    return img
-
-
 def classifier_img_pred(X, y, img, mask, pca=None, classifier=None,
                         sensitive_bands=None, n_classes=2, emsc_corr=False,
                         emsc_degree=0, emsc_Xref=None):
@@ -312,8 +189,6 @@ def classifier_img_pred(X, y, img, mask, pca=None, classifier=None,
                         img_classified[i, j] = 3
     return img_classified
 
-
-# -----------------------------------------------------------------------------
 
 def preprocess_leaf_img(dict, snv_corr=True):
     """

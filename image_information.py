@@ -8,7 +8,38 @@ Functions used to get information from images.
 
 """
 
-import numpy
+import numpy as np
+
+
+def quickplot_image(path_img, path_hdr, area_wr=[0,0,0,0], area_leaf=[0,0,0,0],
+                    bands=[0, 288],
+                    clim=(0, 0.02)):
+    """Simple image plot to check areas"""
+    img, hdr = read_image_file(path_img, path_hdr)
+    # plt.rc('font', size=8)
+    dpi = 100
+    plt.figure(figsize=(img.shape[1]/dpi, img.shape[0]/dpi), dpi=dpi)
+    # Testing better visualization:
+    plt.imshow(np.mean(img[:, :, bands[0]:bands[1]], axis=2),
+               cmap='jet', clim=clim)
+    plt.colorbar()
+
+    # Drawing the white reference and leaf area
+    ymin_wr = area_wr[0]; ymax_wr = area_wr[1]
+    xmin_wr = area_wr[2]; xmax_wr = area_wr[3]
+    ymin_l = area_leaf[0]; ymax_l = area_leaf[1]
+    xmin_l = area_leaf[2]; xmax_l = area_leaf[3]
+
+    # # White reference area:
+    plt.gca().add_patch(Rectangle((xmin_wr, ymin_wr),
+                                  (xmax_wr - xmin_wr), (ymax_wr - ymin_wr),
+                                  linewidth=1, color='r', fill=False))
+    # # Leaf area:
+    plt.gca().add_patch(Rectangle((xmin_l, ymin_l),
+                                  (xmax_l - xmin_l), (ymax_l - ymin_l),
+                                  linewidth=1, color='r', fill=False))
+    plt.show()
+    return img
 
 
 def plot_hypercube(cube, mask, bands, Xref_emsc=False, emsc_degree=2,
@@ -26,6 +57,34 @@ def plot_hypercube(cube, mask, bands, Xref_emsc=False, emsc_degree=2,
     plt.imshow(cube, clim=clim, interpolation='None')
     plt.colorbar()
     plt.show()
+
+
+def group_with_kmeans(img):
+    """
+    Groups the pixels in image in two groups for leaf-background segmentation.
+
+    To be used on cropped image containing leaf and background
+
+    ----- input -----
+    img: spectral image
+        Image containing leaf and background to be segmented
+    ----- returns -----
+    leaf_pixels: list
+        List containing all the pixels from the leaf
+    mask: matrix
+        matrix contaning the mask for leaf-background segmentation
+    c: array(?)
+        centers found with kmeans.
+    """
+    (mask, c) = kmeans(img, 2, 20)
+
+    leaf_pixels = []
+    for i in range(np.shape(mask)[0]):
+        for j in range(np.shape(mask)[1]):
+            if mask[i, j] == 1:
+                leaf_pixels.append(img[i, j, :])
+    leaf_pixels = np.array(leaf_pixels)
+    return leaf_pixels, mask, c
 
 
 def give_deviation_graphs(list_of_spectrums):
