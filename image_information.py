@@ -1,3 +1,39 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Wed Jan 19 2022 19:00
+
+@author: Svein Jakob Kristoffersen (sveinjakobkristoffersen@gmail.com)
+
+Functions used to get information from images.
+
+"""
+
+import numpy
+
+
+def plot_hypercube(cube, mask, bands, Xref_emsc=False, emsc_degree=2,
+                   clim=(0,1)):
+    """Visualizing the hypercube, applying EMSC if necessary"""
+    for i in range(cube.shape[0]):
+        for j in range(cube.shape[1]):
+            if mask[i,j] == 0:  # If this pixel is background
+                cube[i,j] = 0
+            elif Xref_emsc is not None:
+                cube[i, j, :], = emsc(X=cube[i, j, :].reshape(-1, 1).T,
+                                      ref_spec=Xref_emsc, d=emsc_degree)
+    cube = cube[:, :, bands]
+    plt.figure(figsize=(5, 12))
+    plt.imshow(cube, clim=clim, interpolation='None')
+    plt.colorbar()
+    plt.show()
+
+
+def give_deviation_graphs(list_of_spectrums):
+    """Returns mean and std of list of spectrums"""
+    std = np.std(list_of_spectrums, axis=0)
+    mean_spectrum = np.mean(list_of_spectrums, axis=0)
+    return mean_spectrum + std, mean_spectrum - std
+
 
 def reach_area_pixels(df_, class_, is_healthy=False):
     """Returns wanted areas from dataframe, used for abstraction"""

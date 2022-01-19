@@ -1,4 +1,24 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Wed Jan 19 2022 19:00
 
+@author: Svein Jakob Kristoffersen (sveinjakobkristoffersen@gmail.com)
+
+Functions used to apply corrections to images.
+
+"""
+
+
+def absorbance_matrix(datamatrix):
+    """
+    Functino to convert matrix of spectra (reflectance) to matrix of
+    absorbance spectra.
+
+    """
+    new_matrix = np.zeros_like(datamatrix)
+    for i, spectrum in enumerate(datamatrix):
+        new_matrix[i, :] = absorbance_spectrum(spectrum)
+    return new_matrix
 
 
 def white_reference_correction(img, area):
