@@ -9,7 +9,10 @@ Functions used to get information from images.
 """
 
 import numpy as np
+from spectral import kmeans
 
+
+def plot_image_
 
 def quickplot_image(path_img, path_hdr, area_wr=[0,0,0,0], area_leaf=[0,0,0,0],
                     bands=[0, 288],

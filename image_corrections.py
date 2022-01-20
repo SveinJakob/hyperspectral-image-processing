@@ -8,6 +8,8 @@ Functions used to apply corrections to images.
 
 """
 
+import numpy as np
+
 
 def absorbance_matrix(datamatrix):
     """
@@ -21,7 +23,7 @@ def absorbance_matrix(datamatrix):
     return new_matrix
 
 
-def white_reference_correction(img, area):
+def image_correction_white_reference(img, area):
     """
     Perform correction with the white reference, given its area in image.
 
@@ -56,7 +58,7 @@ def white_reference_correction(img, area):
     return img_corr
 
 
-def snv_on_image(img):
+def image_correction_snv(img):
     """
     Performs standard normal variate correction correction on an entire image
 
@@ -66,3 +68,13 @@ def snv_on_image(img):
         for j in range(img.shape[1]):
             img_corr[i, j, :] = snv_single_spectrum(img[i, j, :])
     return np.array(img_corr)
+
+
+def image_correction_emsc(img, mask, reference_spectrum, degree):
+    img_corrected = np.zeros(shape=(img.shape[0], img.shape[1]))
+    for i in range(img.shape[0]):
+        for j in range(img.shape[1]):
+            if mask[i, j] != 0:  # If this pixel is not background
+                spectrum = img[i, j, :].reshape(-1, 1).T
+                spectrum = emsc(X=spectrum, ref_spec=reference_spectrum, d=degree)
+

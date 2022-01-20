@@ -23,6 +23,9 @@ from sklearn.cross_decomposition import PLSRegression
 from sklearn.metrics import accuracy_score, f1_score, confusion_matrix, \
     recall_score, precision_score
 from sklearn.model_selection import StratifiedKFold
+from image_corrections import *
+from image_cropping import *
+from image_information import *
 
 path = os.path.dirname(__file__)
 os.chdir(path)
@@ -36,62 +39,105 @@ def read_image_file(img_path, hdr_path):
     return img_read, hdr_read
 
 
-def preprocess_image(dict, snv_corr=True):
+def preprocess_image(_image_info, emsc_info=None):
     """
-    Performs preprocessing on the image, erg. white reference correction,
-    leaf cropping and leaf-background segmentation using k-means grouping.
+    Performs simple preprocessing of image.
+
+    White reference correction as well as optimal EMSC. The mask of the image
+    is also created using K-means grouping.
 
     ----- input -----
-    dict: dictionary
-        Contains path to image file, area of white ref, area of leaf-crop and
-        possibly area of rust.
+    _image_info: dict
+        Contains path to image and hdr file, area of white ref, area of leaf.
+    emsc_info: dict
+        (Optional) If passed, EMSC correction is performed. Should contain ref-
+        spectrum and degree to perform correction.
     ----- returns -----
-    leaf_pixels: list
-        List containing all the pixels from the leaf
-    mask: matrix
-        matrix contaning the mask for leaf-background segmentation
-    c: array(?)
-        centers found with k-means
-    leaf: spectral image
-        The white reference corrected and segmented leaf image.
-    rust_pixels: list
-        List containing all the rust pixels from the leaf (option)
+    img: np.array
+        image as 3-dimensional matrix
+    mask: np.array
+        mask of leaf, 2-dimensional matrix with bg=0 and leaf=1
     """
-    path_img = dict['Path image']
-    path_hdr = dict['Path hdr']
-    ref_area = dict['Area w.r.']
-    leaf_area = dict['Area leaf']
-    if 'Areas rust' in dict.keys():  # If we have a rust area
-        rust_areas = dict['Areas rust']
-    if 'Areas healthy' in dict.keys():  # If we have a healthy area
-        healthy_areas = dict['Areas healthy']
-    if 'Areas senescence' in dict.keys():  # If we have a senescence area
-        senescence_areas = dict['Areas senescence']
+    # Getting information:
+    path_img = _image_info['Path image']
+    path_hdr = _image_info['Path hdr']
+    ref_area = _image_info['Area w.r.']
+    leaf_area = _image_info['Area leaf']
 
     # Read and WR. corr. the image:
     img, hdr_file = read_image_file(path_img, path_hdr)
-    img = white_reference_correction(img, ref_area)
+    img = image_correction_white_reference(img, ref_area)
+
     # Crop out leaf area:
-    leaf_img = crop_to_area(img, leaf_area)
+    img = crop_to_area(img, leaf_area)
+
     # Group the leaf pixels:
-    leaf_pixels, mask, c = group_with_kmeans(leaf_img)
+    _, mask, _ = group_with_kmeans(img)
 
-    # If areas, return with the cropped out pixels:
-    if 'Areas rust' in dict.keys():
-        area_pixels = crop_out_area_pixels(img, rust_areas)
-    elif 'Areas healthy' in dict.keys():
-        area_pixels = crop_out_area_pixels(img, healthy_areas)
-    elif 'Areas senescence' in dict.keys():
-        area_pixels = crop_out_area_pixels(img, senescence_areas)
-    else:
-        area_pixels = []
+    if emsc_info is not None:
+        ref_spectrum = emsc_info['ref_spectrum']
+        degree = emsc_info['degree']
+        img = image_correction_emsc(img, mask, ref_spectrum, degree)
 
-    # If snv is wanted:
-    if snv_corr is True:
-        leaf_pixels = snv(leaf_pixels)
-        area_pixels = snv_on_list(area_pixels)
+    return img, mask
 
-    return leaf_pixels, mask, leaf_img, area_pixels
+
+# def preprocess_image(dict, snv_corr=True):
+#     """
+#     Performs preprocessing on the image, erg. white reference correction,
+#     leaf cropping and leaf-background segmentation using k-means grouping.
+#
+#     ----- input -----
+#     dict: dictionary
+#         Contains path to image file, area of white ref, area of leaf-crop and
+#         possibly area of rust.
+#     ----- returns -----
+#     leaf_pixels: list
+#         List containing all the pixels from the leaf
+#     mask: matrix
+#         matrix contaning the mask for leaf-background segmentation
+#     c: array(?)
+#         centers found with k-means
+#     leaf: spectral image
+#         The white reference corrected and segmented leaf image.
+#     rust_pixels: list
+#         List containing all the rust pixels from the leaf (option)
+#     """
+#     path_img = dict['Path image']
+#     path_hdr = dict['Path hdr']
+#     ref_area = dict['Area w.r.']
+#     leaf_area = dict['Area leaf']
+#     if 'Areas rust' in dict.keys():  # If we have a rust area
+#         rust_areas = dict['Areas rust']
+#     if 'Areas healthy' in dict.keys():  # If we have a healthy area
+#         healthy_areas = dict['Areas healthy']
+#     if 'Areas senescence' in dict.keys():  # If we have a senescence area
+#         senescence_areas = dict['Areas senescence']
+#
+#     # Read and WR. corr. the image:
+#     img, hdr_file = read_image_file(path_img, path_hdr)
+#     img = white_reference_correction(img, ref_area)
+#     # Crop out leaf area:
+#     leaf_img = crop_to_area(img, leaf_area)
+#     # Group the leaf pixels:
+#     leaf_pixels, mask, c = group_with_kmeans(leaf_img)
+#
+#     # If areas, return with the cropped out pixels:
+#     if 'Areas rust' in dict.keys():
+#         area_pixels = crop_out_area_pixels(img, rust_areas)
+#     elif 'Areas healthy' in dict.keys():
+#         area_pixels = crop_out_area_pixels(img, healthy_areas)
+#     elif 'Areas senescence' in dict.keys():
+#         area_pixels = crop_out_area_pixels(img, senescence_areas)
+#     else:
+#         area_pixels = []
+#
+#     # If snv is wanted:
+#     if snv_corr is True:
+#         leaf_pixels = snv(leaf_pixels)
+#         area_pixels = snv_on_list(area_pixels)
+#
+#     return leaf_pixels, mask, leaf_img, area_pixels
 
 
 def preprocess_images_in_dict(dict_of_dicts, snv_corr=True):
