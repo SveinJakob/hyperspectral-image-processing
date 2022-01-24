@@ -78,115 +78,43 @@ def preprocess_image(_image_info, emsc_info=None):
     return img, mask
 
 
-# def preprocess_image(dict, snv_corr=True):
+# def preprocess_images_in_dict(dict_of_dicts, snv_corr=True):
 #     """
-#     Performs preprocessing on the image, erg. white reference correction,
-#     leaf cropping and leaf-background segmentation using k-means grouping.
-#
-#     ----- input -----
-#     dict: dictionary
-#         Contains path to image file, area of white ref, area of leaf-crop and
-#         possibly area of rust.
-#     ----- returns -----
-#     leaf_pixels: list
-#         List containing all the pixels from the leaf
-#     mask: matrix
-#         matrix contaning the mask for leaf-background segmentation
-#     c: array(?)
-#         centers found with k-means
-#     leaf: spectral image
-#         The white reference corrected and segmented leaf image.
-#     rust_pixels: list
-#         List containing all the rust pixels from the leaf (option)
+#     Functions which calls function preprocess_image on all images in given dict
 #     """
-#     path_img = dict['Path image']
-#     path_hdr = dict['Path hdr']
-#     ref_area = dict['Area w.r.']
-#     leaf_area = dict['Area leaf']
-#     if 'Areas rust' in dict.keys():  # If we have a rust area
-#         rust_areas = dict['Areas rust']
-#     if 'Areas healthy' in dict.keys():  # If we have a healthy area
-#         healthy_areas = dict['Areas healthy']
-#     if 'Areas senescence' in dict.keys():  # If we have a senescence area
-#         senescence_areas = dict['Areas senescence']
-#
-#     # Read and WR. corr. the image:
-#     img, hdr_file = read_image_file(path_img, path_hdr)
-#     img = white_reference_correction(img, ref_area)
-#     # Crop out leaf area:
-#     leaf_img = crop_to_area(img, leaf_area)
-#     # Group the leaf pixels:
-#     leaf_pixels, mask, c = group_with_kmeans(leaf_img)
-#
-#     # If areas, return with the cropped out pixels:
-#     if 'Areas rust' in dict.keys():
-#         area_pixels = crop_out_area_pixels(img, rust_areas)
-#     elif 'Areas healthy' in dict.keys():
-#         area_pixels = crop_out_area_pixels(img, healthy_areas)
-#     elif 'Areas senescence' in dict.keys():
-#         area_pixels = crop_out_area_pixels(img, senescence_areas)
-#     else:
-#         area_pixels = []
-#
-#     # If snv is wanted:
-#     if snv_corr is True:
-#         leaf_pixels = snv(leaf_pixels)
-#         area_pixels = snv_on_list(area_pixels)
-#
-#     return leaf_pixels, mask, leaf_img, area_pixels
+#     # Preprocess all images and append them to lists --------------------------
+#     all_leaf_pixels = []
+#     all_leaf_images = []
+#     all_area_pixels = []
+#     i = 0
+#     for dict_ in dict_of_dicts:
+#         i += 1
+#         print(f'Processing image:  {i}')
+#         leaf_pixels, mask, leaf_img, area_pixels = preprocess_image(dict_,
+#                                                             snv_corr=snv_corr)
+#         all_leaf_pixels.append(leaf_pixels)
+#         all_leaf_images.append(leaf_img)
+#         all_area_pixels.append(area_pixels)
+#     return all_leaf_pixels, all_leaf_images, all_area_pixels
 
 
-def preprocess_images_in_dict(dict_of_dicts, snv_corr=True):
+def predict_image_with_model(img, mask, classifier=None, n_classes=2,
+                             emsc_info=None):
     """
-    Functions which calls function preprocess_image on all images in given dict
-    """
-    # Preprocess all images and append them to lists --------------------------
-    all_leaf_pixels = []
-    all_leaf_images = []
-    all_area_pixels = []
-    i = 0
-    for dict_ in dict_of_dicts:
-        i += 1
-        print(f'Processing image:  {i}')
-        leaf_pixels, mask, leaf_img, area_pixels = preprocess_image(dict_,
-                                                            snv_corr=snv_corr)
-        all_leaf_pixels.append(leaf_pixels)
-        all_leaf_images.append(leaf_img)
-        all_area_pixels.append(area_pixels)
-    return all_leaf_pixels, all_leaf_images, all_area_pixels
-
-
-def classifier_img_pred(X, y, img, mask, pca=None, classifier=None,
-                        sensitive_bands=None, n_classes=2, emsc_corr=False,
-                        emsc_degree=0, emsc_Xref=None):
-    """
-    Function to classify pixels on passed hyperspectral image with passed
-    classifier trained on passed data.
+    Function to classify pixels on hyper spectral image with passed classifier.
 
     Parameters
     ----------
-    X: array
-        Matrix containing spectrums
-    y: array
-        Array containing classes of spectrums in X
-    img: array
+    img: np.array
         3D matrix (hypercube) containing spectrums to be classified
-    mask: array
+    mask: np.array
         2D binary matrix masking leaf on img
-    pca: class
-        PCA from sklearn to use if PCA transformation needed
     classifier: class
-        Sklearn class to classify spectrums from img
-    sensitive_bands: array
-        Bands to crop img if necessary
+        Trained classifier with a .predict() method.
     n_classes: int
-        2 or 4 classes (method 1 or 2)
-    emsc_corr: bool
-        If emsc is necessary
-    emsc_degree: int
-        Degree of emsc
-    emsc_Xref: array
-        Reference spectrum to use in emsc
+        2 or 4 classes
+    emsc_info: dict
+        passed if EMSC wanted, should contain degree and reference spectrum
 
     Returns
     -------
@@ -194,27 +122,30 @@ def classifier_img_pred(X, y, img, mask, pca=None, classifier=None,
         2D matrix of img classified
 
     """
-    classifier.fit(X, y)
-    # Using this classifyer to classify pixels on image:
-    img_to_classify = img
-    img_classified = np.zeros(shape=(img_to_classify.shape[0],
-                                     img_to_classify.shape[1]))
-    for i in range(img_to_classify.shape[0]):
-        for j in range(img_to_classify.shape[1]):
-            if mask[i,j] == 0:  # If this pixel is background
-                img_classified[i,j] = -1
+    # Array with same dimensions as img, classified values are put into this:
+    img_classified = np.zeros(shape=(img.shape[0], img.shape[1]))
+
+    for i in range(img.shape[0]):
+        for j in range(img.shape[1]):
+
+            if mask[i, j] == 0:  # If this pixel is background
+                img_classified[i, j] = -1  # Setting background as value -1
+
             else:  # If this pixel is leaf
-                spectrum = img_to_classify[i, j, :].reshape(-1, 1).T
 
-                if pca is not None:
-                    spectrum = pca.transform(spectrum)
-                if emsc_corr is True:
-                    spectrum = emsc(X=spectrum, ref_spec=emsc_Xref,
-                                    d=emsc_degree)
-                if sensitive_bands is not None:
-                    spectrum = spectrum[:, sensitive_bands]
+                spectrum = img[i, j, :].reshape(-1, 1).T  # The spectrum
 
+                # EMSC if emsc_info is given:
+                if emsc_info is not None:
+                    spectrum = emsc(X=spectrum,
+                                    ref_spec=emsc_info['ref_spectrum'],
+                                    d=emsc_info['degree'])
+
+                # Making a prediction with the model:
                 pred = classifier.predict(spectrum)
+
+                # Using the prediction to append integers to img_classified.
+                # This might change dependent on classifier output.
                 if n_classes == 2:
                     if pred < 0.5:
                         img_classified[i, j] = 0
@@ -232,104 +163,104 @@ def classifier_img_pred(X, y, img, mask, pca=None, classifier=None,
     return img_classified
 
 
-def preprocess_leaf_img(dict, snv_corr=True):
-    """
-    Performs preprocessing on the image, erg. white reference correction,
-    leaf cropping and leaf-background segmentation using k-means grouping and
-    and optional SNV correction.
+# def preprocess_leaf_img(dict, snv_corr=True):
+#     """
+#     Performs preprocessing on the image, erg. white reference correction,
+#     leaf cropping and leaf-background segmentation using k-means grouping and
+#     and optional SNV correction.
+#
+#     ----- input -----
+#     dict: dictionary
+#         Contains path to image file, area of white ref, area of leaf-crop and
+#         possibly area of choosing.
+#     ----- returns -----
+#     leaf_pixels: list
+#         List containing all the pixels from the leaf
+#     mask: matrix
+#         matrix contaning the mask for leaf-background segmentation
+#     leaf_img: spectral image
+#         The white reference corrected and segmented leaf image.
+#     area_pixels: list
+#         List containing all the area pixels from the leaf (option)
+#     """
+#     path_img = dict['Path image']
+#     path_hdr = dict['Path hdr']
+#     ref_area = dict['Area w.r.']
+#     leaf_area = dict['Area leaf']
+#     areas_of_interest = dict['AOI']
+#
+#     # Read and WR. corr. the image:
+#     img, hdr_file = read_image_file(path_img, path_hdr)
+#     img = white_reference_correction(img, ref_area)
+#     # Crop out leaf area:
+#     leaf_img = crop_to_area(img, leaf_area)
+#     # Group the leaf pixels:
+#     print('Starting Kmeans')
+#     leaf_pixels, mask, c = group_with_kmeans(leaf_img)
+#     print('Kmeans ended')
+#
+#     # If areas, return with the cropped out pixels:
+#     print('Cropping out AOI')
+#     area_pixels = get_areas_from_img(img, areas_of_interest)
+#     print(f'AOI cropped: shape{np.shape(area_pixels)}')
+#
+#     # If snv is wanted:
+#     if snv_corr is True:
+#         print('SNV correction applying')
+#         leaf_pixels = snv(leaf_pixels)
+#         area_pixels = snv(area_pixels)
+#         leaf_img = snv_on_image(leaf_img)
+#         print('SNV correction applied')
+#
+#     return leaf_pixels, mask, leaf_img, area_pixels
 
-    ----- input -----
-    dict: dictionary
-        Contains path to image file, area of white ref, area of leaf-crop and
-        possibly area of choosing.
-    ----- returns -----
-    leaf_pixels: list
-        List containing all the pixels from the leaf
-    mask: matrix
-        matrix contaning the mask for leaf-background segmentation
-    leaf_img: spectral image
-        The white reference corrected and segmented leaf image.
-    area_pixels: list
-        List containing all the area pixels from the leaf (option)
-    """
-    path_img = dict['Path image']
-    path_hdr = dict['Path hdr']
-    ref_area = dict['Area w.r.']
-    leaf_area = dict['Area leaf']
-    areas_of_interest = dict['AOI']
 
-    # Read and WR. corr. the image:
-    img, hdr_file = read_image_file(path_img, path_hdr)
-    img = white_reference_correction(img, ref_area)
-    # Crop out leaf area:
-    leaf_img = crop_to_area(img, leaf_area)
-    # Group the leaf pixels:
-    print('Starting Kmeans')
-    leaf_pixels, mask, c = group_with_kmeans(leaf_img)
-    print('Kmeans ended')
-
-    # If areas, return with the cropped out pixels:
-    print('Cropping out AOI')
-    area_pixels = get_areas_from_img(img, areas_of_interest)
-    print(f'AOI cropped: shape{np.shape(area_pixels)}')
-
-    # If snv is wanted:
-    if snv_corr is True:
-        print('SNV correction applying')
-        leaf_pixels = snv(leaf_pixels)
-        area_pixels = snv(area_pixels)
-        leaf_img = snv_on_image(leaf_img)
-        print('SNV correction applied')
-
-    return leaf_pixels, mask, leaf_img, area_pixels
-
-
-def read_data_to_df(dicts, snv_corr=True):
-    """
-    Reads all data from input, preprocesses it and puts it into a dataframe.
-
-    Extracts each dictionary from dicts and preprocesses its data with external
-    function preprocess_leaf_img(). All preprosessed leaf data is placed in a
-    dataframe with column names:
-        class: str
-            ex. rust, healthy
-        leaf pixels: array
-            array of arrays representing pixel spectrums from leaf.
-        area pixels: array
-            contains arrays representing spectra of pixels in specified areas
-        leaf number: int
-            number to keep track of leaf for RGB comparison.
-        image: matrix
-            hypercube of leaf image.
-        mask: matrix
-            mask for leaf with binary values.
-
-    This function could be improved to also be able to perform EMSC on spectra.
-
-    ----- input -----
-    dicts: dictionary
-        Dictionary containing many dictionaries, one for each leaf.
-    snv_corr: bool
-        Whether or not to perform SNV correction on spectra.
-    ----- returns -----
-    df: DataFrame
-        Contains columns as described above, each row represent data for one
-        leaf.
-    """
-    df = pd.DataFrame()
-    for dict_ in dicts:
-        leaf_pixels, mask, img, area_pixels = \
-            preprocess_leaf_img(dict_, snv_corr=snv_corr)
-        df_leaf = pd.DataFrame(columns=['class', 'leaf pixels', 'area pixels',
-                                        'leaf number', 'image', 'mask'])
-        df_leaf['class'] = [dict_['Class']]
-        df_leaf['leaf pixels'] = [leaf_pixels]
-        df_leaf['area pixels'] = [area_pixels]
-        df_leaf['leaf number'] = [dict_['Path image'].split('\\')[-1][:-4]]
-        df_leaf['image'] = [img]
-        df_leaf['mask'] = [mask]
-        df = df.append(df_leaf)
-    return df
+# def read_data_to_df(dicts, snv_corr=True):
+#     """
+#     Reads all data from input, preprocesses it and puts it into a dataframe.
+#
+#     Extracts each dictionary from dicts and preprocesses its data with external
+#     function preprocess_leaf_img(). All preprosessed leaf data is placed in a
+#     dataframe with column names:
+#         class: str
+#             ex. rust, healthy
+#         leaf pixels: array
+#             array of arrays representing pixel spectrums from leaf.
+#         area pixels: array
+#             contains arrays representing spectra of pixels in specified areas
+#         leaf number: int
+#             number to keep track of leaf for RGB comparison.
+#         image: matrix
+#             hypercube of leaf image.
+#         mask: matrix
+#             mask for leaf with binary values.
+#
+#     This function could be improved to also be able to perform EMSC on spectra.
+#
+#     ----- input -----
+#     dicts: dictionary
+#         Dictionary containing many dictionaries, one for each leaf.
+#     snv_corr: bool
+#         Whether or not to perform SNV correction on spectra.
+#     ----- returns -----
+#     df: DataFrame
+#         Contains columns as described above, each row represent data for one
+#         leaf.
+#     """
+#     df = pd.DataFrame()
+#     for dict_ in dicts:
+#         leaf_pixels, mask, img, area_pixels = \
+#             preprocess_leaf_img(dict_, snv_corr=snv_corr)
+#         df_leaf = pd.DataFrame(columns=['class', 'leaf pixels', 'area pixels',
+#                                         'leaf number', 'image', 'mask'])
+#         df_leaf['class'] = [dict_['Class']]
+#         df_leaf['leaf pixels'] = [leaf_pixels]
+#         df_leaf['area pixels'] = [area_pixels]
+#         df_leaf['leaf number'] = [dict_['Path image'].split('\\')[-1][:-4]]
+#         df_leaf['image'] = [img]
+#         df_leaf['mask'] = [mask]
+#         df = df.append(df_leaf)
+#     return df
 
 
 if __name__ == '__main__':
