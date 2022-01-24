@@ -15,9 +15,18 @@ from matplotlib.patches import Rectangle
 from spectral import kmeans
 
 
+def plot_image(img, bands=None, clim=None):
 
+    if bands is not None:
+        img = img[:, :, bands[0]:bands[1]]
 
-def plot_image_
+    dpi = 100
+
+    plt.figure(figsize=(img.shape[1] / dpi, img.shape[0] / dpi), dpi=dpi)
+    plt.imshow(np.mean(img[:, :, :], axis=2), cmap='jet', clim=clim)
+    plt.colorbar()
+    plt.show()
+
 
 def quickplot_image(path_img, path_hdr, area_wr=[0,0,0,0], area_leaf=[0,0,0,0],
                     bands=[0, 288],
