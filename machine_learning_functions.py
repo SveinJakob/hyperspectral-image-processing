@@ -8,6 +8,8 @@ Functions used for machine learning setup.
 
 """
 
+import numpy as np
+
 
 def make_x_y(list_of_lists):
     """

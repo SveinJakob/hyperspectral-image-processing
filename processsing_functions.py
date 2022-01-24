@@ -11,18 +11,14 @@ Bottom of file shows how to preprocess many images and save them to file.
 
 import os
 from spectrum_corrections import *
-from math import log10
-import matplotlib.pyplot as plt
-from matplotlib.patches import Rectangle
 import numpy as np
 from spectral import envi
-from spectral import kmeans, principal_components
-from scipy.signal import savgol_filter
 import pandas as pd
 from sklearn.cross_decomposition import PLSRegression
 from sklearn.metrics import accuracy_score, f1_score, confusion_matrix, \
     recall_score, precision_score
 from sklearn.model_selection import StratifiedKFold
+
 from image_corrections import *
 from image_cropping import *
 from image_information import *

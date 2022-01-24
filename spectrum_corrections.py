@@ -10,6 +10,10 @@ Functions used to apply corrections to single spectrum or list of spectrum.
 
 import numpy as np
 import numpy.linalg as la
+from math import log10
+from scipy.signal import savgol_filter
+
+
 
 
 

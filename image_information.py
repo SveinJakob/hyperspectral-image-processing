@@ -10,6 +10,11 @@ Functions used to get information from images.
 
 import numpy as np
 from spectral import kmeans
+import matplotlib.pyplot as plt
+from matplotlib.patches import Rectangle
+from spectral import kmeans
+
+
 
 
 def plot_image_
