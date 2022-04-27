@@ -11,8 +11,8 @@ Example use of functions
 from processsing_functions import preprocess_image
 
 
-image_info = {'Path image': r'C:\Users\svein\Downloads\drive-download-20220120T185236Z-001\rust_12.img',
-              'Path hdr': r'C:\Users\svein\Downloads\drive-download-20220120T185236Z-001\rust_12.hdr',
+image_info = {'Path image': r'rust_12.img',
+              'Path hdr': r'rust_12.hdr',
               'Area w.r.': '50:380, 220:350',
               'Area leaf': '100:480, 50:140',
               }
